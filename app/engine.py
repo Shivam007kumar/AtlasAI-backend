@@ -45,9 +45,11 @@ async def start_engine(sio):
             await engine_tick(sio)
         except Exception as e:
             print(f"Error in engine loop: {e}")
+        await sio.emit('agent_status', {"status": "Idle. Monitoring Data Stream..."})
         await asyncio.sleep(15)
 
 async def engine_tick(sio):
+    await sio.emit('agent_status', {"status": "Simulating Logistics Flow..."})
     state = get_live_state()
     current_time = datetime.datetime.now(datetime.timezone.utc)
     
@@ -104,6 +106,8 @@ async def engine_tick(sio):
     anomalies = []
     high_risk_shipments = []
     
+    await sio.emit('agent_status', {"status": "Scanning for Anomalies (ML Watchtower)..."})
+    
     # 2. Watchtower + ML Anomaly Detection Loop
     for wh in state['warehouses']:
         # Replace hardcoded threshold with isolation forest classifier
@@ -123,6 +127,8 @@ async def engine_tick(sio):
             "message": f"CASCADING FAILURE DETECTED: {len(anomalies)} warehouses congested simultaneously.",
             "node_id": "SYSTEM_WIDE"
         })
+            
+    await sio.emit('agent_status', {"status": "Evaluating Shipment Risk Models..."})
             
     # 3. Shipment Risk Classification Loop
     # (top_carriers and carrier_lookup moved to top of function)
@@ -162,6 +168,7 @@ async def engine_tick(sio):
             
         target_shipment = impacted_shipments[0]
         
+        await sio.emit('agent_status', {"status": "Anomaly Detected! Querying OLAP Carrier Database..."})
         await sio.emit('agent_stream', {"chunk": f"ML Sequence Anomaly detected at {wh_id}. Assessing carrier success rates... "})
         await asyncio.sleep(1) 
         
@@ -208,6 +215,8 @@ You must output ONLY valid JSON matching this schema exactly:
             ],
             "stream": True 
         }
+        
+        await sio.emit('agent_status', {"status": "Consulting Cognitive Agent for Rerouting Strategy..."})
         
         decision = None
         
@@ -306,12 +315,14 @@ You must output ONLY valid JSON matching this schema exactly:
                 if is_expensive:
                     from app.api import pending_actions
                     pending_actions[audit_id] = decision
+                    await sio.emit('agent_status', {"status": "Awaiting Human Approval for High-Cost Action"})
                     await sio.emit('approval_required', {
                         "audit_id": audit_id,
                         "decision": decision
                     })
                 else:
                     update_shipment_carrier(decision.get('target_shipment_id'), decision.get('new_carrier_id'))
+                    await sio.emit('agent_status', {"status": "Action Executed Successfully"})
                     await sio.emit('action_executed', {
                         "message": f"Swapped to {decision.get('new_carrier_id')}. Cost ${estimated_cost}."
                     })

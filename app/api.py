@@ -44,6 +44,7 @@ async def api_action_approve(payload: ActionApprovePayload):
         # In a full app, we would emit action_executed here via socket.io, 
         # but the engine will pick up state changes. Or we emit directly.
         from app.main import sio
+        await sio.emit('agent_status', {"status": "Human Approval Received. Action Executed."})
         await sio.emit('action_executed', {"message": f"Swapped to {action['new_carrier_id']}. Cost ${action['estimated_cost']}"})
         
         return {"status": "success", "message": "Action approved and executed"}

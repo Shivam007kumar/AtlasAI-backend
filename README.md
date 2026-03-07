@@ -127,6 +127,7 @@ Atlas AI communicates via dual-channel protocols to maintain UI responsiveness w
 | :--- | :--- | :--- |
 | `sync_state` | `Engine -> UI` | Massive 15s global state refresh. |
 | `metrics_update` | `Engine -> UI` | Live stats (ML Inferences, LLM Calls, Chaos counts). |
+| `agent_status` | `Engine -> UI` | Realtime status of the engine loop (e.g., "Scanning for Anomalies"). |
 | `watchtower_alert` | `Engine -> UI` | Instant alert that the ML models spotted an anomaly. |
 | `agent_stream` | `Engine -> UI` | Matrix-style streaming text of the LLM's thought process. |
 | `approval_required` | `Engine -> UI` | Halts execution. Pushes the proposed decision object for review. |
