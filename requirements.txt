@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-socketio
+sqlalchemy
+duckdb
+pydantic
+requests
+python-dotenv
+numpy
+pandas
+scikit-learn
