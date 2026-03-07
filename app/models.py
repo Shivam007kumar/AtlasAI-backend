@@ -41,3 +41,6 @@ class ChaosInjectPayload(BaseModel):
 class ActionApprovePayload(BaseModel):
     audit_id: str
     approved: bool
+
+class LlmTogglePayload(BaseModel):
+    enabled: bool

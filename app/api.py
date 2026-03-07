@@ -50,3 +50,10 @@ async def api_action_approve(payload: ActionApprovePayload):
         return {"status": "success", "message": "Action approved and executed"}
     
     return {"status": "failed", "message": "Approval failed or not found"}
+
+@router.post("/api/config/llm_toggle")
+async def api_llm_toggle(payload: __import__('app.models', fromlist=['LlmTogglePayload']).LlmTogglePayload):
+    from app.engine import config_state
+    config_state["llm_enabled"] = payload.enabled
+    status_str = "Enabled" if payload.enabled else "Disabled (Mock Engine Active)"
+    return {"status": "success", "message": f"LLM is now {status_str}"}

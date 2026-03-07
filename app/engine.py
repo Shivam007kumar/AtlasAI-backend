@@ -29,6 +29,11 @@ metrics = {
     "chaos_events": 0
 }
 
+# Global config state
+config_state = {
+    "llm_enabled": True
+}
+
 async def start_engine(sio):
     print("Initializing Core Engine ML Models...")
     try:
@@ -220,7 +225,7 @@ You must output ONLY valid JSON matching this schema exactly:
         
         decision = None
         
-        if not OPENROUTER_API_KEY:
+        if not OPENROUTER_API_KEY or not config_state["llm_enabled"]:
             mock_text = f'Anomalies detected. I propose rerouting shipment {target_shipment["id"]} to {top_carriers[0]["name"]}.'
             for word in mock_text.split():
                 await sio.emit('agent_stream', {"chunk": word + " "})
