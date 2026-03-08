@@ -162,6 +162,11 @@ async def engine_tick(sio):
                 
                 if risk_prob > 0.8:  # 80%+ chance of failure even if hub isn't strictly an 'anomaly'
                     high_risk_shipments.append({"shipment": s, "risk": risk_prob, "delay": predicted_delay_mins})
+                    
+                # Save computed metrics to live DB for frontend consumption
+                from app.database.sqlite_live import update_shipment_risk
+                if risk_prob != s.get('risk_score', 0.0) or predicted_delay_mins != s.get('predicted_delay', 0):
+                    update_shipment_risk(s['id'], risk_prob, int(predicted_delay_mins))
 
     # Combine strict anomalies with high risk ML shipments
     for anomaly in anomalies:
@@ -195,7 +200,10 @@ CONSTRAINTS:
 
 You must output ONLY valid JSON matching this schema exactly:
 {{
-  "thought_process": "Multi-factor reasoning for your choice",
+  "reasoning": [
+    "Insight 1 explaining the risk",
+    "Insight 2 explaining why this carrier was chosen"
+  ],
   "action_type": "reroute_carrier", 
   "target_shipment_id": "{target_shipment['id']}",
   "new_carrier_id": "CARRIER_ID_HERE",
@@ -232,7 +240,7 @@ You must output ONLY valid JSON matching this schema exactly:
                 await asyncio.sleep(0.1)
                 
             decision = {
-                "thought_process": mock_text,
+                "reasoning": [mock_text, "Selected highest reliability carrier."],
                 "action_type": "reroute_carrier",
                 "target_shipment_id": target_shipment['id'],
                 "new_carrier_id": top_carriers[0]['id'],
@@ -308,7 +316,7 @@ You must output ONLY valid JSON matching this schema exactly:
                 log_action(
                     log_id=audit_id,
                     trigger_event=f"Anomaly at {wh_id}",
-                    llm_reasoning=decision.get('thought_process', ''),
+                    llm_reasoning=json.dumps(decision.get('reasoning', [])),
                     selected_vendor=decision.get('new_carrier_id', ''),
                     outcome_success=True, 
                     action_type=decision.get('action_type', ''),

@@ -14,6 +14,7 @@ class Carrier(BaseModel):
     avg_delay_mins: int
     cost_multiplier: float
     tier: str
+    reliability_score: float = 0.0
 
 class Shipment(BaseModel):
     id: str
@@ -24,9 +25,11 @@ class Shipment(BaseModel):
     status: str
     promised_eta: str
     current_eta: str
+    risk_score: float = 0.0
+    predicted_delay: int = 0
 
 class AgentDecision(BaseModel):
-    thought_process: str
+    reasoning: list[str]
     action_type: str
     target_shipment_id: str
     new_carrier_id: str

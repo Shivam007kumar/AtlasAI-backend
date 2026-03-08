@@ -32,7 +32,9 @@ def init_live_db():
             priority TEXT,
             status TEXT,
             promised_eta TEXT,
-            current_eta TEXT
+            current_eta TEXT,
+            risk_score REAL DEFAULT 0.0,
+            predicted_delay INTEGER DEFAULT 0
         )
     ''')
     
@@ -76,12 +78,13 @@ def init_live_db():
         shipments.append((
             f'SHP_1{i:03d}', origin, dest, carrier, priority, 'in_transit', 
             promised.isoformat().replace('+00:00', 'Z'),
-            promised.isoformat().replace('+00:00', 'Z')
+            promised.isoformat().replace('+00:00', 'Z'),
+            0.0, 0
         ))
         
     cursor.executemany('''
-        INSERT OR IGNORE INTO Shipment_Live (id, origin_id, destination_id, carrier_id, priority, status, promised_eta, current_eta)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO Shipment_Live (id, origin_id, destination_id, carrier_id, priority, status, promised_eta, current_eta, risk_score, predicted_delay)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', shipments)
     
     conn.commit()
@@ -158,5 +161,16 @@ def update_shipment_eta(shipment_id: str, new_eta: str):
         SET current_eta = ?
         WHERE id = ?
     ''', (new_eta, shipment_id))
+    conn.commit()
+    conn.close()
+
+def update_shipment_risk(shipment_id: str, risk_score: float, predicted_delay: int):
+    conn = sqlite3.connect(LIVE_DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE Shipment_Live 
+        SET risk_score = ?, predicted_delay = ?
+        WHERE id = ?
+    ''', (risk_score, predicted_delay, shipment_id))
     conn.commit()
     conn.close()
