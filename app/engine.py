@@ -237,7 +237,7 @@ You must output ONLY valid JSON matching this schema exactly:
   ],
   "action_type": "reroute_carrier", 
   "target_shipment_id": "{target_shipment['id']}",
-  "new_carrier_id": "CARRIER_ID_HERE",
+  "new_carrier_id": "ID_HERE", // MUST BE THE EXACT String ID like 'C_BLUEDART'
   "cost_breakdown": {{
     "reroute_cost": 50.0,
     "delay_penalty": 25.0,
@@ -349,12 +349,18 @@ You must output ONLY valid JSON matching this schema exactly:
                 is_expensive = estimated_cost > 50
                 
                 # Confidence overriding
-                if confidence < 0.6:
+                if confidence < 0.8:
                     is_expensive = True # Always require approval if agent is unsure
-                elif confidence >= 0.95 and estimated_cost < 100:
-                    is_expensive = False # Auto-execute if absolutely certain and decently bounded
+                elif confidence >= 0.95 and estimated_cost < 50:
+                    is_expensive = False # Auto-execute only if absolutely certain AND cheap
                     
                 decision['requires_approval'] = is_expensive 
+                decision['estimated_cost'] = estimated_cost # Inject for Frontend UI
+                
+                # Ensure carrier ID isn't hallucinated as a name
+                if decision.get('new_carrier_id') not in carrier_lookup.keys():
+                    # fallback to top carrier if hallucinated
+                    decision['new_carrier_id'] = top_carriers[0]['id']
                 
                 audit_id = f"LOG_{int(time.time())}"
                 
