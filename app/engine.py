@@ -96,6 +96,12 @@ async def engine_tick(sio):
                     assigned_c['success_rate_pct']
                 )
                 
+                # Add environmental signals
+                delay_mins += s.get('traffic_delay_mins', 0)
+                delay_mins += s.get('pickup_delay_mins', 0)
+                if s.get('weather_signal') == 'Monsoon':
+                    delay_mins += 45
+                
                 # Based on delay_mins, update current_eta
                 # Parse promised_eta and add delay
                 try:
@@ -158,6 +164,10 @@ async def engine_tick(sio):
                     origin_wh['throughput_pct'], 
                     assigned_c['success_rate_pct']
                 )
+                predicted_delay_mins += s.get('traffic_delay_mins', 0)
+                predicted_delay_mins += s.get('pickup_delay_mins', 0)
+                if s.get('weather_signal') == 'Monsoon':
+                    predicted_delay_mins += 45
                 metrics["ml_inferences"] += 1
                 
                 if risk_prob > 0.8:  # 80%+ chance of failure even if hub isn't strictly an 'anomaly'
@@ -167,6 +177,22 @@ async def engine_tick(sio):
                 from app.database.sqlite_live import update_shipment_risk
                 if risk_prob != s.get('risk_score', 0.0) or predicted_delay_mins != s.get('predicted_delay', 0):
                     update_shipment_risk(s['id'], risk_prob, int(predicted_delay_mins))
+
+    # Graph-Aware Cascading Failure Detection
+    warehouse_risk_counts = {}
+    for element in high_risk_shipments:
+        w_id = element['shipment']['origin_id']
+        warehouse_risk_counts[w_id] = warehouse_risk_counts.get(w_id, 0) + 1
+        
+    for w_id, count in warehouse_risk_counts.items():
+        if count >= 3:
+            await sio.emit('watchtower_alert', {
+                "message": f"GRAPH BOTTLENECK: Hub {w_id} has {count} cascading high-risk shipments.",
+                "node_id": w_id
+            })
+            if not any(a['id'] == w_id for a in anomalies):
+                wh = next((w for w in state['warehouses'] if w['id'] == w_id), None)
+                if wh: anomalies.append(wh)
 
     # Combine strict anomalies with high risk ML shipments
     for anomaly in anomalies:
@@ -185,8 +211,12 @@ async def engine_tick(sio):
         prompt = f"""
 ANOMALY CONTEXT:
 - Warehouse: {wh_id} is operating at ({anomaly['throughput_pct']}%) throughput.
+- Warehouse Inventory Level: {anomaly.get('inventory_level_pct', 80)}%
 - Target Shipment ID: {target_shipment['id']}
 - Priority: {target_shipment['priority']}
+- Weather Signal: {target_shipment.get('weather_signal', 'Clear')}
+- Traffic Delay: {target_shipment.get('traffic_delay_mins', 0)} mins
+- Pickup Delay: {target_shipment.get('pickup_delay_mins', 0)} mins
 - Identified high-risk shipments system-wide: {len(high_risk_shipments)}
 
 CARRIER OPTIONS:
@@ -196,7 +226,8 @@ CONSTRAINTS:
 - Use your multi-factor reasoning to decide if we should reroute the carrier.
 - Try to balance maintaining SLA for High priority shipments with cost for Medium/Low.
 - Decide an action type: "reroute_carrier" or "priority_boost".
-- Supply a confidence score (0.0 to 1.0). If you are extremely confident (over 0.95), we might auto-execute even if it's slightly expensive.
+- Calculate an economic optimization cost via a cost_breakdown dictionary.
+- Supply a confidence score (0.0 to 1.0).
 
 You must output ONLY valid JSON matching this schema exactly:
 {{
@@ -207,7 +238,12 @@ You must output ONLY valid JSON matching this schema exactly:
   "action_type": "reroute_carrier", 
   "target_shipment_id": "{target_shipment['id']}",
   "new_carrier_id": "CARRIER_ID_HERE",
-  "estimated_cost": 100.0,
+  "cost_breakdown": {{
+    "reroute_cost": 50.0,
+    "delay_penalty": 25.0,
+    "sla_risk": 15.0,
+    "total": 90.0
+  }},
   "confidence": 0.95,
   "requires_approval": true
 }}
@@ -244,7 +280,13 @@ You must output ONLY valid JSON matching this schema exactly:
                 "action_type": "reroute_carrier",
                 "target_shipment_id": target_shipment['id'],
                 "new_carrier_id": top_carriers[0]['id'],
-                "estimated_cost": 120.0, 
+                "cost_breakdown": {
+                    "reroute_cost": 60.0,
+                    "delay_penalty": 20.0,
+                    "sla_risk": 10.0,
+                    "total": 90.0
+                },
+                "confidence": 0.85,
                 "requires_approval": True
             }
             metrics["llm_calls"] += 1 # Tracking mock calls too for visibility
@@ -299,15 +341,18 @@ You must output ONLY valid JSON matching this schema exactly:
                 
         if decision:
             try:
-                estimated_cost = float(decision.get('estimated_cost', 0))
+                cb = decision.get('cost_breakdown', {})
+                estimated_cost = float(cb.get('total', 0) if isinstance(cb, dict) else decision.get('estimated_cost', 0))
                 confidence = float(decision.get('confidence', 0.8))
                 
                 # Base rule: > $50 needs approval
                 is_expensive = estimated_cost > 50
                 
-                # Confidence overriding: If it's incredibly confident and risk is relatively bounded (<$100), auto-execute anyway
-                if confidence >= 0.95 and estimated_cost < 100:
-                    is_expensive = False
+                # Confidence overriding
+                if confidence < 0.6:
+                    is_expensive = True # Always require approval if agent is unsure
+                elif confidence >= 0.95 and estimated_cost < 100:
+                    is_expensive = False # Auto-execute if absolutely certain and decently bounded
                     
                 decision['requires_approval'] = is_expensive 
                 

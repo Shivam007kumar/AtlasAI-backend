@@ -14,7 +14,8 @@ def init_olap_db():
             cost_multiplier DOUBLE,
             tier VARCHAR,
             failure_rate_pct DOUBLE,
-            reliability_score DOUBLE
+            reliability_score DOUBLE,
+            vehicle_capacity_pct INTEGER
         )
     ''')
     
@@ -44,15 +45,15 @@ def init_olap_db():
     # Seed Carriers
     conn.execute('''
         INSERT OR REPLACE INTO Carrier_Performance_Mart 
-        (id, name, success_rate_pct, avg_delay_mins, cost_multiplier, tier, failure_rate_pct, reliability_score)
+        (id, name, success_rate_pct, avg_delay_mins, cost_multiplier, tier, failure_rate_pct, reliability_score, vehicle_capacity_pct)
         VALUES 
-            ('C_BLUEDART', 'BlueDart Premium', 98.5, 15, 1.5, 'A', 1.5, 97.0),
-            ('C_FEDEX', 'FedEx Select', 99.0, 10, 2.0, 'A', 1.0, 98.0),
-            ('C_DHL', 'DHL Standard', 95.0, 45, 1.0, 'B', 5.0, 90.5),
-            ('C_LOCAL_XP', 'Local Express', 88.0, 120, 0.8, 'C', 12.0, 76.0),
-            ('C_SAFE_EXPRESS', 'Safe Express', 92.0, 30, 0.9, 'B', 8.0, 89.0),
-            ('C_GATI', 'Gati Ground', 85.0, 180, 0.5, 'C', 15.0, 67.0),
-            ('C_DTDC', 'DTDC Saver', 89.0, 90, 0.7, 'C', 11.0, 80.0)
+            ('C_BLUEDART', 'BlueDart Premium', 98.5, 15, 1.5, 'A', 1.5, 97.0, 92),
+            ('C_FEDEX', 'FedEx Select', 99.0, 10, 2.0, 'A', 1.0, 98.0, 85),
+            ('C_DHL', 'DHL Standard', 95.0, 45, 1.0, 'B', 5.0, 90.5, 88),
+            ('C_LOCAL_XP', 'Local Express', 88.0, 120, 0.8, 'C', 12.0, 76.0, 98),
+            ('C_SAFE_EXPRESS', 'Safe Express', 92.0, 30, 0.9, 'B', 8.0, 89.0, 75),
+            ('C_GATI', 'Gati Ground', 85.0, 180, 0.5, 'C', 15.0, 67.0, 90),
+            ('C_DTDC', 'DTDC Saver', 89.0, 90, 0.7, 'C', 11.0, 80.0, 82)
     ''')
     
     conn.close()
@@ -60,7 +61,7 @@ def init_olap_db():
 def get_top_carriers(limit: int = 3):
     conn = duckdb.connect(OLAP_DB_PATH)
     result = conn.execute(f'''
-        SELECT id, name, success_rate_pct, avg_delay_mins, cost_multiplier, tier, reliability_score 
+        SELECT id, name, success_rate_pct, avg_delay_mins, cost_multiplier, tier, reliability_score, vehicle_capacity_pct 
         FROM Carrier_Performance_Mart 
         ORDER BY success_rate_pct DESC 
         LIMIT {limit}
@@ -68,7 +69,7 @@ def get_top_carriers(limit: int = 3):
     
     conn.close()
     
-    keys = ['id', 'name', 'success_rate_pct', 'avg_delay_mins', 'cost_multiplier', 'tier', 'reliability_score']
+    keys = ['id', 'name', 'success_rate_pct', 'avg_delay_mins', 'cost_multiplier', 'tier', 'reliability_score', 'vehicle_capacity_pct']
     return [dict(zip(keys, row)) for row in result]
 
 def log_action(log_id: str, trigger_event: str, llm_reasoning: str, selected_vendor: str, 

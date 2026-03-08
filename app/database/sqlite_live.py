@@ -11,7 +11,8 @@ def init_live_db():
             id TEXT PRIMARY KEY,
             name TEXT,
             throughput_pct INTEGER,
-            is_congested BOOLEAN
+            is_congested BOOLEAN,
+            inventory_level_pct INTEGER DEFAULT 80
         )
     ''')
     
@@ -34,7 +35,10 @@ def init_live_db():
             promised_eta TEXT,
             current_eta TEXT,
             risk_score REAL DEFAULT 0.0,
-            predicted_delay INTEGER DEFAULT 0
+            predicted_delay INTEGER DEFAULT 0,
+            weather_signal TEXT DEFAULT 'Clear',
+            traffic_delay_mins INTEGER DEFAULT 0,
+            pickup_delay_mins INTEGER DEFAULT 0
         )
     ''')
     
@@ -43,19 +47,19 @@ def init_live_db():
     
     # 50 Hubs
     hubs = [
-        ('WH_MUM_1', 'Mumbai Port South', 100, 0), ('WH_MUM_2', 'Mumbai Airport', 100, 0),
-        ('WH_DEL_1', 'Delhi Main', 100, 0), ('WH_DEL_2', 'Delhi East', 100, 0),
-        ('WH_BLR_1', 'Bangalore Central', 100, 0), ('WH_BLR_2', 'Bangalore North', 100, 0),
-        ('WH_CHE_1', 'Chennai Port', 100, 0), ('WH_HYD_1', 'Hyderabad Gateway', 100, 0),
-        ('WH_PUN_1', 'Pune Fulfillment', 100, 0), ('WH_KOL_1', 'Kolkata Depot', 100, 0)
+        ('WH_MUM_1', 'Mumbai Port South', 100, 0, 85), ('WH_MUM_2', 'Mumbai Airport', 100, 0, 92),
+        ('WH_DEL_1', 'Delhi Main', 100, 0, 78), ('WH_DEL_2', 'Delhi East', 100, 0, 81),
+        ('WH_BLR_1', 'Bangalore Central', 100, 0, 65), ('WH_BLR_2', 'Bangalore North', 100, 0, 70),
+        ('WH_CHE_1', 'Chennai Port', 100, 0, 88), ('WH_HYD_1', 'Hyderabad Gateway', 100, 0, 90),
+        ('WH_PUN_1', 'Pune Fulfillment', 100, 0, 75), ('WH_KOL_1', 'Kolkata Depot', 100, 0, 80)
     ]
     # Add generic hubs to reach 50
     for i in range(11, 51):
-        hubs.append((f'WH_IN_{i}', f'India Reg Node {i}', 100, 0))
+        hubs.append((f'WH_IN_{i}', f'India Reg Node {i}', 100, 0, random.randint(60, 95)))
     
     cursor.executemany('''
-        INSERT OR IGNORE INTO Hub_Live (id, name, throughput_pct, is_congested)
-        VALUES (?, ?, ?, ?)
+        INSERT OR IGNORE INTO Hub_Live (id, name, throughput_pct, is_congested, inventory_level_pct)
+        VALUES (?, ?, ?, ?, ?)
     ''', hubs)
     
     # 100 Shipments
@@ -75,16 +79,27 @@ def init_live_db():
         # Promised ETA between 2 to 72 hours from now
         promised = now + datetime.timedelta(hours=random.randint(2, 72))
         
+        weather = 'Clear'
+        traffic = 0
+        pickup = random.randint(0, 30) # normal pickup delay
+        if random.random() < 0.1: # 10% chance of monsoon
+            weather = 'Monsoon'
+            traffic = random.randint(30, 120)
+            pickup = random.randint(60, 240) # rain causes severe pickup delays
+        elif random.random() < 0.2: # 20% chance of standard traffic
+            traffic = random.randint(15, 60)
+            pickup = random.randint(15, 60)
+        
         shipments.append((
             f'SHP_1{i:03d}', origin, dest, carrier, priority, 'in_transit', 
             promised.isoformat().replace('+00:00', 'Z'),
             promised.isoformat().replace('+00:00', 'Z'),
-            0.0, 0
+            0.0, 0, weather, traffic, pickup
         ))
         
     cursor.executemany('''
-        INSERT OR IGNORE INTO Shipment_Live (id, origin_id, destination_id, carrier_id, priority, status, promised_eta, current_eta, risk_score, predicted_delay)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO Shipment_Live (id, origin_id, destination_id, carrier_id, priority, status, promised_eta, current_eta, risk_score, predicted_delay, weather_signal, traffic_delay_mins, pickup_delay_mins)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', shipments)
     
     conn.commit()
