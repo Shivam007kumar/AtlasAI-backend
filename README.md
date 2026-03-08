@@ -11,6 +11,15 @@
 
 Atlas AI continuously monitors global shipments, predicts cascading risks using Machine Learning, and autonomously negotiates carrier rerouting via Cognitive LLM Agents—all while keeping humans in the loop for high-risk financial decisions.
 
+---
+
+### 🖥️ Live War Room Dashboard
+**URL:** [https://atlasai-logisticsdashboard.vercel.app/login](https://atlasai-logisticsdashboard.vercel.app/login)
+
+**Credentials:**
+*   **Username:** `Admin`
+*   **Password:** `Admin@123`
+
 </div>
 
 ---
@@ -20,20 +29,21 @@ Atlas AI continuously monitors global shipments, predicts cascading risks using 
 Atlas AI breaks away from traditional static rule-engines. It operates on a continuous Perception-Action loop designed to preemptively eliminate supply chain friction.
 
 ### 1. Perception (Machine Learning)
-The engine ingests a simulated 15-second heartbeat containing thousands of shipment states.
-* **ETA Prediction**: Random Forest models dynamically forecast arrival delays based on real-time port congestion.
-* **Anomaly Detection**: Scikit-learn Isolation Forests identify statistically abnormal throughput drops that human operators miss.
-* **Risk Classification**: Multi-factor logistic regression flags shipments at risk of SLA breaches.
+The engine ingests a simulated 15-second heartbeat containing thousands of shipment states, enriched with environmental signals.
+* **ETA Prediction**: Recurrent models forecast arrival delays by factoring in **Monsoon signals**, **traffic congestion**, and **pickup warehouse delays**.
+* **Anomaly Detection**: Isolation Forests identify statistically abnormal throughput drops across the global network.
+* **Risk Classification**: Multi-factor logistic regression flags shipments at 80%+ risk of SLA breach.
+* **Cascading Failure Detection**: Graph-aware logic identifies systemic bottlenecks when multiple hubs exhibit simultaneous throughput decay.
 
 ### 2. Reasoning (Cognitive Agent)
 When an anomaly triggers the Watchtower, Atlas transitions from ML to LLM.
-* **Context Gathering**: Querying DuckDB (OLAP) for historical carrier reliability.
+* **Context Gathering**: Querying DuckDB (OLAP) for historical carrier reliability, warehouse **inventory levels**, and **vehicle capacity** states.
 * **Strategic Planning**: Anthropic/OpenRouter LLMs analyze the crisis and calculate the optimal rerouting strategy, prioritizing timeline versus cost constraints.
 
 ### 3. Action (Execution & PoLP)
 Atlas operates under the **Principle of Least Privilege (PoLP)**.
-* **Autonomous Execution**: If a reroute costs under $50, the agent executes the DB transaction instantly.
-* **Human-in-the-Loop**: If the cost breaches the unapproved threshold, the system streams its reasoning to the dashboard and throws a hard block until a manager clicks "Approve."
+* **Autonomous Execution**: If a reroute costs under $50 and confidence is high (>0.95), the agent executes the transaction instantly.
+* **Human-in-the-Loop**: If the cost breaches the threshold or confidence is low, the system streams its reasoning to the dashboard and throws a hard block until a manager clicks "Approve."
 
 ---
 
@@ -121,6 +131,7 @@ Atlas AI communicates via dual-channel protocols to maintain UI responsiveness w
 | `GET` | `/api/state` | Retrieves the global ground-truth JSON (Warehouses & Shipments). |
 | `POST` | `/api/chaos/inject` | Instantly drops a warehouse's throughput to simulate crisis. |
 | `POST` | `/api/action/approve`| Cryptographically fires an agent's deferred, high-cost action. |
+| `POST` | `/api/config/llm_toggle`| Enables or disables the core cognitive engine (toggle for mock mode). |
 
 ### Telemetry Stream (WebSockets)
 | Event Name | Direction | Payload Description |
@@ -131,6 +142,7 @@ Atlas AI communicates via dual-channel protocols to maintain UI responsiveness w
 | `watchtower_alert` | `Engine -> UI` | Instant alert that the ML models spotted an anomaly. |
 | `agent_stream` | `Engine -> UI` | Matrix-style streaming text of the LLM's thought process. |
 | `approval_required` | `Engine -> UI` | Halts execution. Pushes the proposed decision object for review. |
+| `action_executed` | `Engine -> UI` | Confirms successful execution of a reroute action. |
 
 ---
 
